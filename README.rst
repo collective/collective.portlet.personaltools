@@ -1,8 +1,6 @@
 Introduction
 ============
 
-.. content::
-
 This product adds `Personal tools` portlet.
 
 
