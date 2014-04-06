@@ -6,8 +6,6 @@ from plone.portlets.interfaces import IPortletAssignment
 from plone.portlets.interfaces import IPortletDataProvider
 from plone.portlets.interfaces import IPortletRenderer
 
-from plone.app.portlets.storage import PortletAssignmentMapping
-
 from collective.portlet.personaltools import personaltools
 
 from collective.portlet.personaltools.tests.base import TestCase
@@ -41,24 +39,11 @@ class TestPortlet(TestCase):
             del mapping[m]
         addview = mapping.restrictedTraverse('+/' + portlet.addview)
 
-        # TODO: Pass a dictionary containing dummy form inputs from the add
-        # form.
-        # Note: if the portlet has a NullAddForm, simply call
-        # addview() instead of the next line.
-        addview.createAndAdd(data={})
+        addview()
 
         self.assertEquals(len(mapping), 1)
         self.failUnless(isinstance(mapping.values()[0],
                                    personaltools.Assignment))
-
-    def test_invoke_edit_view(self):
-        # NOTE: This test can be removed if the portlet has no edit form
-        mapping = PortletAssignmentMapping()
-        request = self.folder.REQUEST
-
-        mapping['foo'] = personaltools.Assignment()
-        editview = getMultiAdapter((mapping['foo'], request), name='edit')
-        self.failUnless(isinstance(editview, personaltools.EditForm))
 
     def test_obtain_renderer(self):
         context = self.folder
@@ -88,20 +73,17 @@ class TestRenderer(TestCase):
         manager = manager or getUtility(
             IPortletManager, name='plone.rightcolumn', context=self.portal)
 
-        # TODO: Pass any default keyword arguments to the Assignment
-        # constructor.
         assignment = assignment or personaltools.Assignment()
         return getMultiAdapter((context, request, view, manager, assignment),
                                IPortletRenderer)
 
     def test_render(self):
-        # TODO: Pass any keyword arguments to the Assignment constructor.
         r = self.renderer(context=self.portal,
                           assignment=personaltools.Assignment())
         r = r.__of__(self.folder)
         r.update()
-        #output = r.render()
-        # TODO: Test output
+        output = r.render()
+        self.assertIn('Log out', output)
 
 
 def test_suite():
