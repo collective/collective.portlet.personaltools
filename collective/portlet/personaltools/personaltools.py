@@ -1,109 +1,84 @@
 from zope.interface import implements
+from zope.component import getMultiAdapter
 
 from plone.portlets.interfaces import IPortletDataProvider
 from plone.app.portlets.portlets import base
 
-# TODO: If you define any fields for the portlet configuration schema below
-# do not forget to uncomment the following import
-#from zope import schema
-from zope.formlib import form
+from urllib import quote_plus
 
+from AccessControl import getSecurityManager
 from Products.Five.browser.pagetemplatefile import ViewPageTemplateFile
+from Products.CMFCore.utils import getToolByName
 
-# TODO: If you require i18n translation for any of your schema fields below,
-# uncomment the following to import your package MessageFactory
-#from collective.portlet.personaltools import PersonalToolsMessageFactory as _
+from Products.CMFPlone import PloneMessageFactory as _
 
 
 class IPersonalTools(IPortletDataProvider):
-    """A portlet
-
-    It inherits from IPortletDataProvider because for this portlet, the
-    data that is being rendered and the portlet assignment itself are the
-    same.
+    """A portlet which renders a personal tools for logged in users.
     """
-
-    # TODO: Add any zope.schema fields here to capture portlet configuration
-    # information. Alternatively, if there are no settings, leave this as an
-    # empty interface - see also notes around the add form and edit form
-    # below.
-
-    # some_field = schema.TextLine(title=_(u"Some field"),
-    #                              description=_(u"A field to use"),
-    #                              required=True)
 
 
 class Assignment(base.Assignment):
-    """Portlet assignment.
-
-    This is what is actually managed through the portlets UI and associated
-    with columns.
-    """
-
     implements(IPersonalTools)
 
-    # TODO: Set default values for the configurable parameters here
-
-    # some_field = u""
-
-    # TODO: Add keyword parameters for configurable parameters here
-    # def __init__(self, some_field=u""):
-    #    self.some_field = some_field
-
-    def __init__(self):
-        pass
-
-    @property
-    def title(self):
-        """This property is used to give the title of the portlet in the
-        "manage portlets" screen.
-        """
-        return "Personal tools"
+    title = _(u'heading_personal_tools', default=u'Personal tools')
 
 
 class Renderer(base.Renderer):
-    """Portlet renderer.
 
-    This is registered in configure.zcml. The referenced page template is
-    rendered, and the implicit variable 'view' will refer to an instance
-    of this class. Other methods can be added and referenced in the template.
-    """
+    def __init__(self, context, request, view, manager, data):
+        base.Renderer.__init__(self, context, request, view, manager, data)
+
+        self.portal_state = getMultiAdapter((self.context, self.request),
+                                            name=u'plone_portal_state')
+        self.context_state = getMultiAdapter((self.context, self.request),
+                                             name=u'plone_context_state')
+        self.tools = getMultiAdapter((self.context, self.request),
+                                     name=u'plone_tools')
+        self.sm = getSecurityManager()
+        self.portal_url = self.portal_state.portal_url()
+        self.user_actions = self.context_state.actions().get('user', None)
+        self.anonymous = self.portal_state.anonymous()
+
+        plone_utils = getToolByName(self.context, 'plone_utils')
+        self.getIconFor = plone_utils.getIconFor
+
+    @property
+    def available(self):
+        return not self.anonymous
+
+    def homelink_url(self):
+        member = self.portal_state.member()
+        userid = member.getId()
+        if self.sm.checkPermission('Portlets: Manage own portlets',
+                                   self.context):
+            self.homelink_url = self.portal_url + '/dashboard'
+        else:
+            self.homelink_url = self.portal_url + '/author/' +\
+                quote_plus(userid)
+        return self.homelink_url
+
+    def portal_url(self):
+        return self.portal_url
+
+    def user_name(self):
+        member = self.portal_state.member()
+        userid = member.getId()
+        member_info = self.tools.membership().getMemberInfo(member.getId())
+        fullname = member_info.get('fullname', '')
+        if fullname:
+            self.user_name = fullname
+        else:
+            self.user_name = userid
+        return self.user_name
+
+    def update(self):
+        pass
 
     render = ViewPageTemplateFile('personaltools.pt')
 
 
-class AddForm(base.AddForm):
-    """Portlet add form.
+class AddForm(base.NullAddForm):
 
-    This is registered in configure.zcml. The form_fields variable tells
-    zope.formlib which fields to display. The create() method actually
-    constructs the assignment that is being added.
-    """
-    form_fields = form.Fields(IPersonalTools)
-
-    def create(self, data):
-        return Assignment(**data)
-
-
-# NOTE: If this portlet does not have any configurable parameters, you
-# can use the next AddForm implementation instead of the previous.
-
-# class AddForm(base.NullAddForm):
-#     """Portlet add form.
-#     """
-#     def create(self):
-#         return Assignment()
-
-
-# NOTE: If this portlet does not have any configurable parameters, you
-# can remove the EditForm class definition and delete the editview
-# attribute from the <plone:portlet /> registration in configure.zcml
-
-
-class EditForm(base.EditForm):
-    """Portlet edit form.
-
-    This is registered with configure.zcml. The form_fields variable tells
-    zope.formlib which fields to display.
-    """
-    form_fields = form.Fields(IPersonalTools)
+    def create(self):
+        return Assignment()
